@@ -9,6 +9,13 @@
 
 export const API_BASE_URL = 'https://functions.yandexcloud.net/d4ejgqppc85no82ns36m'
 
+/**
+ * Заголовок для JWT. `Authorization` использовать нельзя: при прямом вызове функции
+ * платформа Yandex Cloud отвечает `403 Forbidden: Not authorized` (заголовок зарезервирован
+ * под IAM-токен), поэтому клиент и бэкенд используют `X-Auth-Token`.
+ */
+export const AUTH_TOKEN_HEADER = 'X-Auth-Token'
+
 const ROUTE_QUERY_PARAM = 'route'
 
 export type UserRole = 'player' | 'master'
@@ -78,6 +85,9 @@ interface RequestOptions {
 interface ErrorPayload {
   error?: string
   message?: string
+  // Формат ошибок платформы Yandex Cloud (например, 403 Forbidden от прямого вызова)
+  errorMessage?: string
+  errorCode?: number
 }
 
 async function request<T>({ method, route, body, token }: RequestOptions): Promise<T> {
@@ -89,7 +99,7 @@ async function request<T>({ method, route, body, token }: RequestOptions): Promi
     headers['Content-Type'] = 'application/json'
   }
   if (token) {
-    headers.Authorization = `Bearer ${token}`
+    headers[AUTH_TOKEN_HEADER] = token
   }
 
   let response: Response
@@ -117,8 +127,8 @@ async function request<T>({ method, route, body, token }: RequestOptions): Promi
     const errorPayload: ErrorPayload = (payload ?? {}) as ErrorPayload
     throw new ApiError(
       response.status,
-      errorPayload.error ?? 'REQUEST_FAILED',
-      errorPayload.message ?? 'Не удалось выполнить запрос',
+      errorPayload.error ?? `HTTP_${response.status}`,
+      errorPayload.message ?? errorPayload.errorMessage ?? 'Не удалось выполнить запрос',
     )
   }
 

@@ -91,7 +91,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
     setIsDeleting(true)
     try {
       await deleteAccount()
-      toast.success('Аккаунт удалён. Возвращайтесь за новыми приключениями!')
+      toast.success('Аккаунт успешно удален')
       onOpenChange(false)
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : 'Не удалось удалить аккаунт')

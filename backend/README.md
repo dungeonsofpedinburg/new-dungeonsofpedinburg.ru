@@ -131,6 +131,16 @@ YDB_ERROR_OPERATION: <операция: driver.ready(timeout) | verifySchema | f
 
 ## API
 
+Все защищённые роуты ждут JWT в заголовке **`X-Auth-Token`**:
+
+```bash
+curl https://<api-host>/auth/me -H "X-Auth-Token: $TOKEN"
+```
+
+⚠️ Заголовок `Authorization` при прямом вызове функции использовать нельзя: платформа Yandex Cloud
+отвечает `403 Forbidden: Not authorized` (зарезервирован под IAM-токен). Фолбэк на
+`Authorization: Bearer <token>` в обработчике всё равно поддержан — для схемы за API Gateway.
+
 ### GET /ping
 
 Проверка живости, к YDB не обращается.
@@ -180,7 +190,7 @@ curl -X POST https://<api-host>/auth/login \
 ### GET /auth/me
 
 ```bash
-curl https://<api-host>/auth/me -H "Authorization: Bearer $TOKEN"
+curl https://<api-host>/auth/me -H "X-Auth-Token: $TOKEN"
 ```
 
 Ответ `200 OK`: `{ "user": { ... } }`.
@@ -192,7 +202,7 @@ curl https://<api-host>/auth/me -H "Authorization: Bearer $TOKEN"
 
 ```bash
 curl -X PUT https://<api-host>/auth/me \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Auth-Token: $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{ "name": "Гром Скала", "telegram_username": "grom_skala" }'
 ```
@@ -204,7 +214,7 @@ curl -X PUT https://<api-host>/auth/me \
 Удаляет пользователя из YDB безвозвратно.
 
 ```bash
-curl -X DELETE https://<api-host>/auth/me -H "Authorization: Bearer $TOKEN"
+curl -X DELETE https://<api-host>/auth/me -H "X-Auth-Token: $TOKEN"
 ```
 
 Ответ `200 OK`: `{ "success": true }`.
@@ -215,7 +225,7 @@ curl -X DELETE https://<api-host>/auth/me -H "Authorization: Bearer $TOKEN"
 |---|---|---|
 | `VALIDATION_ERROR` | 400 | некорректные поля запроса |
 | `INVALID_JSON` | 400 | тело запроса не является JSON |
-| `UNAUTHORIZED` | 401 | отсутствует заголовок `Authorization: Bearer <token>` |
+| `UNAUTHORIZED` | 401 | нет токена в заголовке `X-Auth-Token` (или `Authorization: Bearer`) |
 | `INVALID_TOKEN` | 401 | подпись или срок жизни JWT не прошли проверку |
 | `INVALID_CREDENTIALS` | 401 | неверный email или пароль |
 | `NOT_FOUND` | 404 | неизвестный роут |

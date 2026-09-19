@@ -66,3 +66,10 @@ PUT https://functions.yandexcloud.net/d4ejgqppc85no82ns36m?route=/auth/me
 query-параметр `route` → обычный путь запроса (вариант за API Gateway). Методы `GET/POST/PUT/DELETE/OPTIONS`
 прямым вызовом поддерживаются, CORS-заголовки отдаёт сам обработчик.
 
+### Токен передаётся в `X-Auth-Token`
+
+Заголовок `Authorization` при прямом вызове функции **нельзя**: платформа Yandex Cloud отвечает
+`403 Forbidden: Not authorized` (он зарезервирован под IAM-токен и до функции не доходит). Поэтому
+клиент (`src/services/api.ts`) отправляет JWT в заголовке `X-Auth-Token`, а бэкенд читает его
+(фолбэк на `Authorization: Bearer` оставлен для схемы за API Gateway).
+

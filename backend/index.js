@@ -46,11 +46,14 @@ const PATH_PREFIX = (process.env.API_PATH_PREFIX || '').replace(/\/+$/, '')
 // `/<function_id>/ping` → ProxyIntegrationError. Поэтому маршрут можно передать
 // query-параметром `?route=/ping` или заголовком `X-Route: /ping`.
 const ROUTE_QUERY_PARAM = 'route'
+// JWT передаём своим заголовком: `Authorization` при прямом вызове функции режет
+// платформа Yandex Cloud (403 Forbidden: Not authorized — он зарезервирован под IAM-токен).
+const AUTH_TOKEN_HEADER = 'x-auth-token'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'OPTIONS, GET, POST, PUT, DELETE',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Route',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Route, X-Auth-Token',
 }
 
 const ROUTES = {
@@ -311,6 +314,9 @@ VALUES
   })
 }
 
+// Колонки таблицы типа Utf8? (nullable): и значение, и NULL передаём типом Utf8?.
+const NULLABLE_USER_FIELDS = ['gender', 'birth_date', 'telegram_username', 'avatar_url']
+
 async function updateUser(session, id, patch) {
   const declares = ['DECLARE $id AS Utf8;', 'DECLARE $updated_at AS Timestamp;']
   const assignments = ['updated_at = $updated_at']
@@ -318,9 +324,9 @@ async function updateUser(session, id, patch) {
 
   for (const [field, value] of Object.entries(patch)) {
     const param = `$${field}`
-    if (value === null) {
+    if (NULLABLE_USER_FIELDS.includes(field)) {
       declares.push(`DECLARE ${param} AS Utf8?;`)
-      params[param] = TypedValues.optionalNull(Types.UTF8)
+      params[param] = value ? TypedValues.optional(TypedValues.utf8(value)) : TypedValues.optionalNull(Types.UTF8)
     } else {
       declares.push(`DECLARE ${param} AS Utf8;`)
       params[param] = TypedValues.utf8(value)
@@ -509,12 +515,21 @@ function getHeader(event, name) {
   return key ? headers[key] : undefined
 }
 
+/** Достаёт JWT из заголовка X-Auth-Token (Authorization: Bearer — как фолбэк). */
+function getAuthToken(event) {
+  const customHeader = asTrimmedString(getHeader(event, AUTH_TOKEN_HEADER))
+  if (customHeader) {
+    return customHeader.replace(/^Bearer\s+/i, '').trim()
+  }
+  const authorization = asTrimmedString(getHeader(event, 'authorization'))
+  return authorization.toLowerCase().startsWith('bearer ') ? authorization.slice(7).trim() : ''
+}
+
 function authenticate(event) {
   const secret = getJwtSecret()
-  const header = asTrimmedString(getHeader(event, 'authorization'))
-  const token = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : ''
+  const token = getAuthToken(event)
   if (!token) {
-    throw new ApiError(401, 'UNAUTHORIZED', 'Требуется заголовок Authorization: Bearer <token>')
+    throw new ApiError(401, 'UNAUTHORIZED', 'Требуется токен в заголовке X-Auth-Token (или Authorization: Bearer <token>)')
   }
   try {
     return jwt.verify(token, secret)
