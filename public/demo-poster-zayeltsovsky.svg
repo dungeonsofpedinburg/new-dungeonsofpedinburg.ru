@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000" role="img" aria-label="Демо-постер «Заельцовский оскал»">
+  <defs>
+    <linearGradient id="zSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#07161a"/>
+      <stop offset="45%" stop-color="#0d2b2f"/>
+      <stop offset="100%" stop-color="#04090c"/>
+    </linearGradient>
+    <radialGradient id="zMoon" cx="68%" cy="22%" r="26%">
+      <stop offset="0%" stop-color="#c9f7e5" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#c9f7e5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="zFog" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#04090c" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#04090c" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="1000" fill="url(#zSky)"/>
+  <circle cx="544" cy="220" r="200" fill="url(#zMoon)"/>
+  <circle cx="544" cy="220" r="86" fill="#e8fff6" opacity="0.9"/>
+
+  <g fill="#0a1f22">
+    <path d="M0 700 L90 640 L170 700 L260 630 L350 700 L430 645 L520 705 L610 640 L700 700 L800 650 L800 1000 L0 1000 Z"/>
+  </g>
+  <g fill="#061113">
+    <path d="M60 760 L60 690 Q100 655 140 690 L140 760 Z"/>
+    <path d="M200 770 L200 700 Q240 665 280 700 L280 770 Z"/>
+    <path d="M520 760 L520 690 Q560 655 600 690 L600 760 Z"/>
+    <path d="M640 770 L640 705 Q680 670 720 705 L720 770 Z"/>
+  </g>
+
+  <g fill="#0b1a1c" opacity="0.95">
+    <path d="M300 720 l40 -34 l40 34 l-40 30 Z"/>
+    <path d="M330 640 l10 -70 l10 70 l18 26 l-56 0 Z"/>
+  </g>
+
+  <rect y="600" width="800" height="400" fill="url(#zFog)"/>
+  <g font-family="Georgia, 'Times New Roman', serif" text-anchor="middle">
+    <text x="400" y="884" font-size="46" fill="#a9e7d2" letter-spacing="4">ЗАЕЛЬЦОВСКИЙ</text>
+    <text x="400" y="942" font-size="46" fill="#7fd0b6" letter-spacing="6">ОСКАЛ</text>
+  </g>
+</svg>

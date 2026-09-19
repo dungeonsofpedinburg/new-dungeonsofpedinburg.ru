@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000" role="img" aria-label="Демо-постер «Особая охота»">
+  <defs>
+    <linearGradient id="hSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#210810"/>
+      <stop offset="45%" stop-color="#4a0f1c"/>
+      <stop offset="100%" stop-color="#0d0408"/>
+    </linearGradient>
+    <radialGradient id="hSun" cx="50%" cy="30%" r="42%">
+      <stop offset="0%" stop-color="#ff9f45" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#ff9f45" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="hFog" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d0408" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0d0408" stop-opacity="0.96"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="1000" fill="url(#hSky)"/>
+  <circle cx="400" cy="320" r="220" fill="url(#hSun)"/>
+  <circle cx="400" cy="330" r="108" fill="#ffd08a" opacity="0.9"/>
+
+  <g stroke="#2a0b12" stroke-width="14" fill="none" stroke-linecap="round">
+    <path d="M120 700 L120 520 M120 560 L70 500 M120 560 L170 505"/>
+    <path d="M680 700 L680 500 M680 545 L630 480 M680 545 L730 485"/>
+  </g>
+
+  <g fill="#1a060c">
+    <path d="M0 760 L120 690 L220 755 L320 685 L420 750 L520 690 L620 755 L720 690 L800 745 L800 1000 L0 1000 Z"/>
+  </g>
+  <g fill="#2a0b12" opacity="0.9">
+    <path d="M330 745 l70 -46 l70 46 l-70 40 Z"/>
+  </g>
+
+  <rect y="620" width="800" height="380" fill="url(#hFog)"/>
+  <g font-family="Georgia, 'Times New Roman', serif" text-anchor="middle">
+    <text x="400" y="884" font-size="52" fill="#ffb877" letter-spacing="5">ОСОБАЯ</text>
+    <text x="400" y="942" font-size="52" fill="#f4813f" letter-spacing="7">ОХОТА</text>
+  </g>
+</svg>

@@ -1,168 +1,208 @@
-import { useState } from 'react'
-import { Dices, Loader2, LogIn, Plus, RefreshCcw, Sparkles, UserRound } from 'lucide-react'
-import { toast } from 'sonner'
+import { useCallback, useEffect, useState } from 'react'
+import { Loader2, LogIn, Plus } from 'lucide-react'
+import { AdventureCard } from '@/components/adventures/AdventureCard'
+import { AdventureDetailSheet } from '@/components/adventures/AdventureDetailSheet'
 import { CreateAdventureModal } from '@/components/adventures/CreateAdventureModal'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { Header } from '@/components/Header'
 import { ProfileModal } from '@/components/profile/ProfileModal'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
-import { ApiError, api } from '@/services/api'
+import { api, type Adventure } from '@/services/api'
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="truncate font-medium">{value}</span>
-    </div>
-  )
+function assetUrl(path: string): string {
+  return new URL(`${import.meta.env.BASE_URL}${path}`, window.location.href).href
 }
 
-function LoadingCard() {
-  return (
-    <Card className="w-full max-w-sm">
-      <CardContent className="flex items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-        Проверяем вход…
-      </CardContent>
-    </Card>
-  )
+/**
+ * Демо-приключения: показываются, пока Мастера не опубликовали свои игры
+ * (или если запрос к API не удался).
+ */
+function buildDemoAdventures(): Adventure[] {
+  return [
+    {
+      id: 'demo-zayeltsovsky-oskal',
+      master_id: 'demo-master-1',
+      master_name: 'Дима Шило',
+      title: 'Заельцовский оскал',
+      description:
+        'В Заельцовском бору находят тела, а звери не оставляют таких следов. Стража списывает всё на волков, но друид-отшельник клянётся: во тьме он слышал человеческий голос.\n\nВас нанимают разобраться до новолуния. Возьмите фонари, серебро и немного удачи — лес не прощает самоуверенных.',
+      system: 'D&D 2024',
+      is_online: false,
+      player_level: '1-3 уровень',
+      game_date: '2026-10-03',
+      game_time: '12:45',
+      duration_hours: 4,
+      location: 'Красный проспект, 15',
+      price: '990',
+      min_players: 3,
+      max_players: 5,
+      current_players: 3,
+      additional_notes: '18+, первый напиток входит в стоимость.',
+      status: 'active',
+      sync_code: 'PEDIN-DEMO1',
+      tg_group_id: null,
+      tg_invite_link: null,
+      poster_url: assetUrl('demo-poster-zayeltsovsky.svg'),
+      logo_url: assetUrl('demo-logo.svg'),
+      logo_position_json: '{"top":45}',
+      created_at: null,
+      updated_at: null,
+    },
+    {
+      id: 'demo-osobaya-ohota',
+      master_id: 'demo-master-2',
+      master_name: 'Аня Волкова',
+      title: 'Особая охота',
+      description:
+        'Кто-то открыл охоту на тех, кто охотился сам. Три трупа, один герб, и все следы ведут в закрытый клуб «Особая охота» на Коммунистической.\n\nВнутри — джентльмены в смокингах, лисьи маски и правила, за нарушение которых платят не деньгами. Вам нужен пригласительный. И алиби.',
+      system: 'Daggerheart',
+      is_online: false,
+      player_level: '4-6 уровень',
+      game_date: '2026-10-11',
+      game_time: '19:00',
+      duration_hours: 5,
+      location: 'Бар The Rooks, Коммунистическая 45',
+      price: '1200',
+      min_players: 2,
+      max_players: 4,
+      current_players: 2,
+      additional_notes: '18+, желательны собственные кубики.',
+      status: 'active',
+      sync_code: 'PEDIN-DEMO2',
+      tg_group_id: null,
+      tg_invite_link: 'https://t.me/dungeonsofpedinburg',
+      poster_url: assetUrl('demo-poster-hunt.svg'),
+      logo_url: assetUrl('demo-logo.svg'),
+      logo_position_json: '{"top":62}',
+      created_at: null,
+      updated_at: null,
+    },
+  ]
 }
 
-function HeroGreetingCard({
-  onOpenProfile,
-  onCreateAdventure,
-}: {
-  onOpenProfile: () => void
-  onCreateAdventure: () => void
-}) {
-  const { user, isMaster } = useAuth()
-
-  if (!user) {
-    return null
+/** Загружает афишу; если активных игр нет или запрос упал — отдаёт демо-набор. */
+async function fetchAdventures(): Promise<Adventure[]> {
+  try {
+    const response = await api.getAdventures()
+    return response.adventures.length > 0 ? response.adventures : buildDemoAdventures()
+  } catch {
+    // витрина не должна пустовать из-за сетевой ошибки
+    return buildDemoAdventures()
   }
-
-  return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-            <Dices className="size-5" />
-          </span>
-          <Badge variant={isMaster ? 'default' : 'secondary'}>
-            {isMaster ? <Sparkles /> : <UserRound />}
-            {isMaster ? 'Мастер игры' : 'Игрок'}
-          </Badge>
-        </div>
-        <CardTitle className="text-lg">Привет, {user.name}!</CardTitle>
-        <CardDescription>Авторизация и профиль работают — можно собирать команду за столом.</CardDescription>
-      </CardHeader>
-
-      <CardContent className="grid gap-2 text-sm">
-        <InfoRow label="Роль" value={isMaster ? 'Мастер игры' : 'Игрок'} />
-        <InfoRow label="Email" value={user.email} />
-        <InfoRow label="Telegram" value={user.telegram_username ? `@${user.telegram_username}` : '—'} />
-        <InfoRow label="Дата рождения" value={user.birth_date ?? '—'} />
-      </CardContent>
-
-      <CardFooter className="flex-col gap-2 sm:flex-row">
-        {isMaster ? (
-          <Button size="lg" className="w-full sm:flex-1" onClick={onCreateAdventure}>
-            <Plus />
-            Создать приключение
-          </Button>
-        ) : null}
-        <Button variant="outline" size="lg" className="w-full sm:flex-1" onClick={onOpenProfile}>
-          <UserRound />
-          Мой профиль
-        </Button>
-      </CardFooter>
-    </Card>
-  )
-}
-
-function GuestCard({ onRequestAuth }: { onRequestAuth: () => void }) {
-  const [isPinging, setIsPinging] = useState(false)
-
-  async function handlePing() {
-    setIsPinging(true)
-    try {
-      const response = await api.ping()
-      toast.success(`API отвечает: ${response.status}`)
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : 'API недоступен')
-    } finally {
-      setIsPinging(false)
-    }
-  }
-
-  return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-            <Dices className="size-5" />
-          </span>
-          <Badge variant="secondary">v1.0 MVP</Badge>
-        </div>
-        <CardTitle className="text-lg">Подземелья Пединбурга</CardTitle>
-        <CardDescription>Тех-фундамент развернут успешно</CardDescription>
-      </CardHeader>
-
-      <CardContent>
-        <p className="text-muted-foreground">
-          Войдите или зарегистрируйтесь, чтобы сохранять героев, участие в играх и приглашения за стол.
-        </p>
-      </CardContent>
-
-      <CardFooter className="flex-col gap-2 sm:flex-row">
-        <Button size="lg" className="w-full" onClick={onRequestAuth}>
-          <LogIn />
-          Войти или зарегистрироваться
-        </Button>
-        <Button variant="ghost" size="lg" className="w-full sm:w-auto" onClick={handlePing} disabled={isPinging}>
-          {isPinging ? <Loader2 className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}
-          Проверить API
-        </Button>
-      </CardFooter>
-    </Card>
-  )
 }
 
 function HomeScreen() {
-  const { isLoading, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isMaster, isLoading } = useAuth()
+  const [adventures, setAdventures] = useState<Adventure[]>([])
+  const [isLoadingAdventures, setIsLoadingAdventures] = useState(true)
+  const [selectedAdventure, setSelectedAdventure] = useState<Adventure | null>(null)
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isCreateAdventureOpen, setIsCreateAdventureOpen] = useState(false)
 
+  const loadAdventures = useCallback(async () => {
+    setAdventures(await fetchAdventures())
+    setIsLoadingAdventures(false)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchAdventures().then((list) => {
+      if (cancelled) {
+        return
+      }
+      setAdventures(list)
+      setIsLoadingAdventures(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const subtitle =
+    isAuthenticated && user
+      ? `Вы вошли как ${user.name}${isMaster ? ' · Мастер игры' : ' · Игрок'}`
+      : 'Настольные приключения в барах Пединбурга'
+
   return (
     // Тема проекта — всегда dark, класс вешаем на корневой контейнер.
-    <div className="dark flex min-h-svh flex-col bg-background text-foreground">
+    <div className="dark flex min-h-svh flex-col bg-black text-zinc-100">
       <Header
         onRequestAuth={() => setIsAuthOpen(true)}
         onRequestProfile={() => setIsProfileOpen(true)}
         onRequestCreateAdventure={() => setIsCreateAdventureOpen(true)}
       />
 
-      <main className="flex flex-1 items-center justify-center px-4 py-8">
-        {isLoading ? (
-          <LoadingCard />
-        ) : isAuthenticated ? (
-          <HeroGreetingCard
-            onOpenProfile={() => setIsProfileOpen(true)}
-            onCreateAdventure={() => setIsCreateAdventureOpen(true)}
-          />
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-12">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-heading text-xl font-black tracking-wide text-white uppercase sm:text-2xl">Список игр</h1>
+            <p className="truncate text-xs text-zinc-500 uppercase">{subtitle}</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isMaster ? (
+              <Button
+                size="sm"
+                onClick={() => setIsCreateAdventureOpen(true)}
+                className="cursor-pointer bg-[#ec4899] font-black tracking-wider text-white uppercase hover:bg-pink-600"
+              >
+                <Plus />
+                Создать приключение
+              </Button>
+            ) : null}
+
+            {!isAuthenticated ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsAuthOpen(true)}
+                className="cursor-pointer border-zinc-700 font-bold tracking-wider text-zinc-200 uppercase hover:bg-zinc-800 hover:text-white"
+              >
+                <LogIn />
+                Войти
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        {isLoading || isLoadingAdventures ? (
+          <div className="flex items-center justify-center gap-3 py-20 text-sm text-zinc-500">
+            <Loader2 className="size-4 animate-spin" />
+            Загружаем игры…
+          </div>
+        ) : adventures.length === 0 ? (
+          <p className="py-20 text-center text-sm text-zinc-500">
+            Пока нет опубликованных игр — станьте первым Мастером!
+          </p>
         ) : (
-          <GuestCard onRequestAuth={() => setIsAuthOpen(true)} />
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {adventures.map((adventure) => (
+              <AdventureCard key={adventure.id} adventure={adventure} onOpen={setSelectedAdventure} />
+            ))}
+          </div>
         )}
       </main>
 
       <AuthModal open={isAuthOpen} onOpenChange={setIsAuthOpen} />
       <ProfileModal open={isProfileOpen} onOpenChange={setIsProfileOpen} />
-      <CreateAdventureModal isOpen={isCreateAdventureOpen} onOpenChange={setIsCreateAdventureOpen} />
+      <CreateAdventureModal
+        isOpen={isCreateAdventureOpen}
+        onOpenChange={setIsCreateAdventureOpen}
+        onPublished={() => {
+          void loadAdventures()
+        }}
+      />
+      <AdventureDetailSheet
+        adventure={selectedAdventure}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedAdventure(null)
+          }
+        }}
+      />
     </div>
   )
 }
@@ -175,4 +215,3 @@ export default function App() {
     </AuthProvider>
   )
 }
-

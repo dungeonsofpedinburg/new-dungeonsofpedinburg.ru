@@ -106,9 +106,11 @@ function OptionButtonGroup({
 interface CreateAdventureModalProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
+  /** Вызывается после успешной публикации — витрина обновляет список. */
+  onPublished?: () => void
 }
 
-export function CreateAdventureModal({ isOpen, onOpenChange }: CreateAdventureModalProps) {
+export function CreateAdventureModal({ isOpen, onOpenChange, onPublished }: CreateAdventureModalProps) {
   const { token } = useAuth()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<AdventureFormState>(INITIAL_FORM)
@@ -280,6 +282,7 @@ export function CreateAdventureModal({ isOpen, onOpenChange }: CreateAdventureMo
         token,
       )
       toast.success('Приключение опубликовано — ищите его в афише!')
+      onPublished?.()
       onOpenChange(false)
     } catch (error) {
       toast.error(describeError(error, 'Не удалось опубликовать приключение'))
