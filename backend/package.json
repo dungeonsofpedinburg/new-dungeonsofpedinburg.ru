@@ -5,6 +5,9 @@
   "description": "Serverless API для «Подземелий Пединбурга»: Yandex Cloud Functions + YDB",
   "type": "module",
   "main": "index.js",
+  "scripts": {
+    "test": "node tests/api.test.mjs"
+  },
   "engines": {
     "node": ">=22"
   },

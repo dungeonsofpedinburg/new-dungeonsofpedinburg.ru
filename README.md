@@ -73,3 +73,16 @@ query-параметр `route` → обычный путь запроса (ва�
 клиент (`src/services/api.ts`) отправляет JWT в заголовке `X-Auth-Token`, а бэкенд читает его
 (фолбэк на `Authorization: Bearer` оставлен для схемы за API Gateway).
 
+### Приключения и Telegram-бот (этап 2)
+
+Бэкенд поддерживает создание приключений Мастерами и синхронизацию с Telegram-ботом:
+
+- `POST /adventures/draft` — черновик + код синхронизации `PEDIN-XXXX` (только Мастер);
+- `GET /adventures/draft-status?adventure_id=…` — статус привязки группы (только Мастер);
+- `POST /adventures/publish` — публикация афиши: `status = active` + постер/логотип (только Мастер);
+- `GET /adventures` — публичная афиша (активные приключения по дате игры);
+- `POST /bot/sync`, `POST /bot/member-update` — внутренние роуты бота (заголовок `X-Bot-Secret`,
+  переменная окружения `BOT_SECRET_KEY`).
+
+Схема таблицы `adventures`, примеры curl и коды ошибок — в [`backend/README.md`](backend/README.md).
+

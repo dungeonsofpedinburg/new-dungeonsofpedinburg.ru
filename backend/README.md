@@ -37,6 +37,7 @@ backend/
 | `YDB_DATABASE` | да | `/ru-central1/<folder-id>/<database-id>` |
 | `JWT_SECRET` | да | секрет подписи JWT |
 | `MASTER_INVITE_CODE` | нет | если `master_code` совпадает — регистрация даёт `role: "master"`, иначе `role: "player"` |
+| `BOT_SECRET_KEY` | для бота | секрет для внутренних роутов `/bot/*` (заголовок `X-Bot-Secret`) |
 | `JWT_EXPIRES_IN` | нет | срок жизни токена, по умолчанию `30d` |
 | `API_PATH_PREFIX` | нет | префикс пути из API Gateway, например `/api` |
 | `YDB_AUTO_MIGRATE` | нет | `false` — отключить автоматическую миграцию схемы |
@@ -101,6 +102,87 @@ YDB_ERROR_OPERATION: <операция: driver.ready(timeout) | verifySchema | f
 | `Column ... not found` / `Type mismatch` по другим полям | схема таблицы отличается от описанной выше |
 | `Не удалось подключиться к YDB за 10000 мс` | проверить `YDB_ENDPOINT`, `YDB_DATABASE` и права сервисного аккаунта (`ydb.editor`) |
 | `failed to fetch token from metadata service` | функция запущена вне Cloud Functions (в облаке метаданные доступны) |
+
+## Приключения и синхронизация с Telegram-ботом
+
+Полный цикл: Мастер создаёт черновик → получает код `PEDIN-XXXX` → бот присылает этот код в группу →
+бэкенд помечает приключение как `synced` → фронтенд публикует афишу (`active`).
+
+| Роут | Доступ | Назначение |
+|---|---|---|
+| `POST /adventures/draft` | Мастер | создать черновик (статус `draft`, `current_players = 0`) |
+| `GET /adventures/draft-status?adventure_id=…` | Мастер | статус привязки группы (`status`, `tg_group_id`, `tg_invite_link`) |
+| `POST /adventures/publish` | Мастер | публикация афиши: `status = active`, постер, логотип, позиция логотипа |
+| `GET /adventures` | публичный | список активных приключений, сортировка по дате игры |
+| `POST /bot/sync` | бот (`X-Bot-Secret`) | привязать Telegram-группу к приключению по `sync_code` |
+| `POST /bot/member-update` | бот (`X-Bot-Secret`) | `joined`/`left`: `current_players` ±1 в границах `[0, max_players]` |
+
+```bash
+# черновик (Мастер)
+curl -X POST "https://<api-host>?route=%2Fadventures%2Fdraft" \
+  -H "X-Auth-Token: $TOKEN" -H "Content-Type: application/json" \
+  -d '{"title":"Тени Пединбурга","system":"D&D 5e","is_online":true,"game_date":"2026-10-01","game_time":"19:00","duration_hours":4,"location":"Бар «Подземелье»","price":500,"min_players":3,"max_players":6}'
+# → {"success":true,"adventure_id":"…","sync_code":"PEDIN-4819"}
+
+# бот привязывает группу
+curl -X POST "https://<api-host>?route=%2Fbot%2Fsync" \
+  -H "X-Bot-Secret: $BOT_SECRET" -H "Content-Type: application/json" \
+  -d '{"sync_code":"PEDIN-4819","tg_group_id":"-1001234567890","tg_invite_link":"https://t.me/+abc"}'
+# → {"success":true,"adventure_title":"Тени Пединбурга"}
+
+# вход/выход игрока
+curl -X POST "https://<api-host>?route=%2Fbot%2Fmember-update" \
+  -H "X-Bot-Secret: $BOT_SECRET" -H "Content-Type: application/json" \
+  -d '{"tg_group_id":"-1001234567890","action":"joined"}'
+# → {"current_players":4,"max_players":6,"title":"Тени Пединбурга"}
+
+# публикация афиши (Мастер)
+curl -X POST "https://<api-host>?route=%2Fadventures%2Fpublish" \
+  -H "X-Auth-Token: $TOKEN" -H "Content-Type: application/json" \
+  -d '{"adventure_id":"…","poster_url":"https://…/poster.png","logo_url":"https://…/logo.png","logo_position_json":{"x":12,"y":34}}'
+
+# афиша
+curl "https://<api-host>?route=%2Fadventures"
+```
+
+### Ожидаемая схема таблицы `adventures`
+
+Таблица создаётся вне обработчика (миграция её не трогает). Типы колонок читаются через `describeTable`
+и логируются строкой `INFO: типы колонок adventures: {...}` — параметры запросов формируются под
+фактические типы, поэтому `Uint32`/`Uint64`/`Bool`/`Utf8` для чисел и флагов поддерживаются одинаково.
+
+```sql
+CREATE TABLE adventures (
+  id                 Utf8,
+  master_id          Utf8,
+  master_name        Utf8,
+  title              Utf8,
+  description        Utf8?,
+  system             Utf8?,
+  is_online          Bool?,
+  player_level       Utf8?,
+  game_date          Utf8?,   -- 'YYYY-MM-DD'
+  game_time          Utf8?,   -- 'HH:MM'
+  duration_hours     Uint32?,
+  location           Utf8?,
+  price              Utf8?,
+  min_players        Uint32?,
+  max_players        Uint32?,
+  current_players    Uint32,
+  additional_notes   Utf8?,
+  status             Utf8,    -- 'draft' | 'synced' | 'active'
+  sync_code          Utf8,
+  tg_group_id        Utf8?,
+  tg_invite_link     Utf8?,
+  poster_url         Utf8?,
+  logo_url           Utf8?,
+  logo_position_json Utf8?,
+  created_at         Timestamp,
+  updated_at         Timestamp,
+  PRIMARY KEY (id),
+  INDEX idx_adventures_sync_code GLOBAL UNIQUE ON (sync_code)
+);
+```
 
 ## Формат ответов
 
@@ -235,6 +317,10 @@ curl -X DELETE https://<api-host>/auth/me -H "X-Auth-Token: $TOKEN"
 | `CONFIG_ERROR` | 500 | не заданы `JWT_SECRET`, `YDB_ENDPOINT` или `YDB_DATABASE` |
 | `INTERNAL_ERROR` | 500 | непредвиденная ошибка (детали — в логах функции) |
 | `YDB_NOT_READY` | 503 | драйвер не смог подключиться к YDB за 10 секунд |
+| `FORBIDDEN_ROLE` | 403 | действие доступно только Мастеру игры |
+| `ADVENTURE_NOT_FOUND` | 404 | приключение не найдено (или принадлежит другому мастеру) |
+| `INVALID_BOT_SECRET` | 401 | неверный или отсутствующий заголовок `X-Bot-Secret` |
+| `SYNC_CODE_CONFLICT` | 500 | не удалось сгенерировать свободный код синхронизации |
 
 ## Деплой в Yandex Cloud
 
@@ -269,7 +355,11 @@ yc serverless function version create \
 cd backend
 npm install
 node --check index.js
+npm test          # 48 проверок на подменённой сессии YDB (реальная база не нужна)
 ```
+
+Тесты (`backend/tests/api.test.mjs`) подменяют `Driver.ready` и `TableClient.withSession`, поэтому
+проверяют и HTTP-статусы роутов, и сгенерированный YQL с типами параметров.
 
 Смоук-тест без реальной БД: задайте `process.env.JWT_SECRET` и вызывайте
 `handler({ httpMethod, path, headers, body })` — ветки `OPTIONS`, `/ping`, валидация и `401`
