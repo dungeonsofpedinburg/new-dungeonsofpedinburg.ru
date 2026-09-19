@@ -43,11 +43,12 @@ backend/
 
 ## Схема данных
 
-Миграция (один раз на инстанс функции) создаёт таблицу и индекс:
+`id` хранится в YDB как **строка `Utf8`** (UUID текстом, сгенерированный `uuidv4()`), а не как тип `Uuid` —
+именно так поле и передаётся в параметрах запросов.
 
 ```sql
 CREATE TABLE users (
-  id                Uuid,
+  id                Utf8,
   email             Utf8,
   password_hash     Utf8,
   name              Utf8,
@@ -66,12 +67,40 @@ CREATE TABLE users (
 - `role` — `player` | `master`;
 - `gender` — `male` | `female` | `other`;
 - `birth_date` — строка `YYYY-MM-DD`;
-- уникальность email обеспечивается глобальным уникальным индексом;
-- поиск пользователя при регистрации/логине идёт через индекс:
-  `SELECT ... FROM users VIEW idx_users_email WHERE email = $email`.
+- типы параметров запросов: `id`, `email`, `password_hash`, `name`, `role` — `Utf8`;
+  `gender`, `birth_date`, `telegram_username`, `avatar_url` — `Utf8?`
+  (`TypedValues.optional(...)` / `TypedValues.optionalNull(...)`); `created_at`, `updated_at` — `Timestamp`.
 
-Если таблица уже есть, а индекса нет — он будет создан при следующем запросе
-(проверка через `describeTable`). Отключить автоматизацию: `YDB_AUTO_MIGRATE=false`.
+### Поведение при старте (миграция)
+
+- **Таблица существует** → обработчик только проверяет её доступность через `describeTable`
+  и ничего не меняет: `ALTER TABLE` / `ADD INDEX` не выполняются, рабочие данные не затрагиваются.
+- **Таблицы нет** → создаётся вместе с глобальным уникальным индексом `idx_users_email`.
+- **Индекс отсутствует** в уже существующей таблице → поиск по email автоматически идёт сканированием
+  (`SELECT ... WHERE email = $email`), в лог печатается `WARN`. Создать индекс вручную:
+  ```sql
+  ALTER TABLE users ADD INDEX idx_users_email GLOBAL UNIQUE ON (email);
+  ```
+- Полностью отключить автосоздание таблицы: `YDB_AUTO_MIGRATE=false`.
+
+## Диагностика ошибок YDB
+
+Причина любой ошибки базы всегда попадает в лог отдельной строкой:
+
+```
+YDB_ERROR_MESSAGE: <сообщение YDB>
+YDB_ISSUES: <детали, если есть>
+YDB_ERROR_OPERATION: <операция: driver.ready(timeout) | verifySchema | findUserByEmail(index) | insertUser | updateUser | deleteUser | unhandledRejection>
+```
+
+Типичные причины:
+
+| Сообщение | Что делать |
+|---|---|
+| `Type mismatch ... Uuid` | в таблице `id` не `Utf8` — привести схему к описанной выше |
+| `Column ... not found` / `Type mismatch` по другим полям | схема таблицы отличается от описанной выше |
+| `Не удалось подключиться к YDB за 10000 мс` | проверить `YDB_ENDPOINT`, `YDB_DATABASE` и права сервисного аккаунта (`ydb.editor`) |
+| `failed to fetch token from metadata service` | функция запущена вне Cloud Functions (в облаке метаданные доступны) |
 
 ## Формат ответов
 
@@ -247,4 +276,9 @@ node --check index.js
   отдаёт те же `snake_case`-ключи, что и принимает.
 - **Атомарность.** Регистрация делает `INSERT` (а не `UPSERT`): при гонке запросов уникальный индекс
   не позволит создать второй профиль с тем же email.
+- **Тип `id`.** Первичный ключ — `Utf8` (строка UUID от `uuidv4()`), поэтому в запросах всегда
+  `DECLARE $id AS Utf8` и `TypedValues.utf8(...)` — тип параметра совпадает со схемой таблицы.
+- **Живучесть инстанса.** Промисы, которые SDK отклоняет вне нашего `try/catch` (например, при
+  недоступности сервиса метаданных), перехватываются обработчиком `unhandledRejection` и логируются —
+  инстанс функции не завершается с ошибкой.
 

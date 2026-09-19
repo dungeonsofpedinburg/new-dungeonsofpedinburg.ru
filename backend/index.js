@@ -11,6 +11,8 @@
  *
  * Переменные окружения: YDB_ENDPOINT, YDB_DATABASE, JWT_SECRET, MASTER_INVITE_CODE,
  * JWT_EXPIRES_IN (опц., по умолчанию 30d), API_PATH_PREFIX (опц.), YDB_AUTO_MIGRATE (опц.).
+ *
+ * Схема: таблица users, где первичный ключ `id` — строка Utf8 (UUID текстом, не тип Uuid).
  */
 
 // ydb-sdk 5.x публикуется как CommonJS, поэтому единственный надёжный способ получить
@@ -26,7 +28,6 @@ const {
   TableDescription,
   TableIndex,
   Column,
-  AlterTableDescription,
   TypedData,
   TypedValues,
   Types,
@@ -108,14 +109,23 @@ function getDriver() {
  */
 async function withSession(fn) {
   const driver = getDriver()
-  const ready = await driver.ready(DRIVER_READY_TIMEOUT_MS)
+  let ready = false
+  try {
+    ready = await driver.ready(DRIVER_READY_TIMEOUT_MS)
+  } catch (error) {
+    logYdbError('driver.ready', error)
+    throw error
+  }
   if (!ready) {
-    throw new ApiError(503, 'YDB_NOT_READY', 'Не удалось подключиться к YDB: проверьте YDB_ENDPOINT и YDB_DATABASE')
+    const message = `Не удалось подключиться к YDB за ${DRIVER_READY_TIMEOUT_MS} мс (проверьте YDB_ENDPOINT и YDB_DATABASE)`
+    console.error('YDB_ERROR_MESSAGE:', message)
+    console.error('YDB_ERROR_OPERATION:', 'driver.ready(timeout)')
+    throw new ApiError(503, 'YDB_NOT_READY', message)
   }
   return driver.tableClient.withSession(fn)
 }
 
-// ─── Схема данных и миграция ─────────────────────────────────────────────────
+// ─── Схема данных: id — строка Utf8 (UUID текстом, не тип Uuid) ──────────────
 
 const USER_COLUMNS = [
   'id',
@@ -134,7 +144,7 @@ const USER_COLUMNS = [
 function usersTableDescription() {
   return new TableDescription()
     .withColumns(
-      new Column('id', Types.UUID),
+      new Column('id', Types.UTF8),
       new Column('email', Types.UTF8),
       new Column('password_hash', Types.UTF8),
       new Column('name', Types.UTF8),
@@ -150,38 +160,38 @@ function usersTableDescription() {
     .withIndex(new TableIndex(USERS_EMAIL_INDEX).withIndexColumns('email').withGlobalUnique())
 }
 
-async function migrate(session) {
-  let tableExists = true
+// Индекс может отсутствовать в уже существующей таблице — тогда ищем полным сканом.
+let emailIndexAvailable = true
+
+/**
+ * Проверяет доступность таблицы users. Существующие таблицы НЕ мигрируем:
+ * DDL-операции (ALTER/ADD INDEX) не выполняются, чтобы не ломать рабочие данные.
+ * Таблица создаётся только если её нет вообще.
+ */
+async function verifySchema(session) {
   try {
-    await session.describeTable(USERS_TABLE)
-  } catch {
-    tableExists = false
-  }
-
-  if (!tableExists) {
+    const described = await session.describeTable(USERS_TABLE)
+    emailIndexAvailable = (described.indexes || []).some((index) => index.name === USERS_EMAIL_INDEX)
+    if (!emailIndexAvailable) {
+      console.warn(`WARN: индекс ${USERS_EMAIL_INDEX} отсутствует — поиск по email пойдёт сканированием таблицы`)
+    }
+  } catch (error) {
+    console.warn('WARN: таблица users недоступна, пробуем создать:', error && error.message)
     await session.createTable(USERS_TABLE, usersTableDescription())
-    return
-  }
-
-  const described = await session.describeTable(USERS_TABLE)
-  const hasEmailIndex = (described.indexes || []).some((index) => index.name === USERS_EMAIL_INDEX)
-  if (!hasEmailIndex) {
-    const alter = new AlterTableDescription()
-    alter.addIndexes.push(new TableIndex(USERS_EMAIL_INDEX).withIndexColumns('email').withGlobalUnique())
-    await session.alterTable(USERS_TABLE, alter)
   }
 }
 
 let schemaPromise = null
 
-/** Один раз на инстанс функции создаёт таблицу users и индекс idx_users_email. */
+/** Один раз на инстанс функции проверяет, что таблица users доступна. */
 function ensureSchema() {
   if (!AUTO_MIGRATE) {
     return Promise.resolve()
   }
   if (!schemaPromise) {
-    schemaPromise = withSession((session) => migrate(session)).catch((error) => {
-      schemaPromise = null // даём следующему запросу шанс повторить миграцию
+    schemaPromise = withSession((session) => verifySchema(session)).catch((error) => {
+      logYdbError('verifySchema', error)
+      schemaPromise = null // даём следующему запросу шанс повторить проверку
       throw error
     })
   }
@@ -194,35 +204,83 @@ function optionalUtf8(value) {
   return value === null || value === undefined ? TypedValues.optionalNull(Types.UTF8) : TypedValues.optional(TypedValues.utf8(value))
 }
 
-async function selectRows(session, yql, params) {
-  const { resultSets } = await session.executeQuery(yql, params)
-  const resultSet = resultSets && resultSets[0]
+// ─── Диагностика ─────────────────────────────────────────────────────────────
+
+/**
+ * Печатает причину ошибки YDB одной строкой — так её сразу видно в логах Cloud Functions.
+ */
+function logYdbError(operation, error) {
+  const message = error && error.message ? error.message : String(error)
+  console.error('YDB_ERROR_MESSAGE:', message)
+  if (error && error.issues) {
+    console.error('YDB_ISSUES:', JSON.stringify(error.issues))
+  }
+  console.error('YDB_ERROR_OPERATION:', operation)
+}
+
+// Ошибки сети/метаданных из SDK всплывают вне наших try/catch: логируем их,
+// чтобы инстанс функции не завершался из-за «unhandled rejection».
+process.on('unhandledRejection', (reason) => {
+  logYdbError('unhandledRejection', reason)
+})
+
+/** Выполняет YQL-запрос и логирует ошибки YDB с контекстом операции. */
+async function executeYql(session, operation, yql, params) {
+  try {
+    const { resultSets } = await session.executeQuery(yql, params)
+    return resultSets || []
+  } catch (error) {
+    logYdbError(operation, error)
+    throw error
+  }
+}
+
+async function selectRows(session, operation, yql, params) {
+  const resultSets = await executeYql(session, operation, yql, params)
+  const resultSet = resultSets[0]
   if (!resultSet || !resultSet.rows || resultSet.rows.length === 0) {
     return []
   }
   return TypedData.createNativeObjects(resultSet)
 }
 
-async function findUserByEmail(session, email) {
-  // Обращаемся к таблице через индекс idx_users_email.
-  const yql = `
+function buildFindUserByEmailYql(useIndex) {
+  const source = useIndex ? `${USERS_TABLE} VIEW ${USERS_EMAIL_INDEX}` : USERS_TABLE
+  return `
 DECLARE $email AS Utf8;
-SELECT ${USER_COLUMNS} FROM ${USERS_TABLE} VIEW ${USERS_EMAIL_INDEX} WHERE email = $email;`
-  const rows = await selectRows(session, yql, { $email: TypedValues.utf8(email) })
+SELECT ${USER_COLUMNS} FROM ${source} WHERE email = $email;`
+}
+
+async function findUserByEmail(session, email) {
+  const params = { $email: TypedValues.utf8(email) }
+
+  if (emailIndexAvailable) {
+    try {
+      const rows = await selectRows(session, 'findUserByEmail(index)', buildFindUserByEmailYql(true), params)
+      return rows[0] || null
+    } catch (error) {
+      // Индекса может не быть в уже существующей таблице — переходим на скан.
+      emailIndexAvailable = false
+      console.warn('WARN: поиск через индекс не удался, используем сканирование таблицы:', error && error.message)
+    }
+  }
+
+  const rows = await selectRows(session, 'findUserByEmail(scan)', buildFindUserByEmailYql(false), params)
   return rows[0] || null
 }
 
 async function findUserById(session, id) {
+  // id хранится и передаётся строго как Utf8-строка (UUID текстом).
   const yql = `
-DECLARE $id AS Uuid;
+DECLARE $id AS Utf8;
 SELECT ${USER_COLUMNS} FROM ${USERS_TABLE} WHERE id = $id;`
-  const rows = await selectRows(session, yql, { $id: TypedValues.uuid(id) })
+  const rows = await selectRows(session, 'findUserById', yql, { $id: TypedValues.utf8(id) })
   return rows[0] || null
 }
 
 async function insertUser(session, record) {
   const yql = `
-DECLARE $id AS Uuid;
+DECLARE $id AS Utf8;
 DECLARE $email AS Utf8;
 DECLARE $password_hash AS Utf8;
 DECLARE $name AS Utf8;
@@ -238,8 +296,8 @@ INSERT INTO ${USERS_TABLE}
 VALUES
   ($id, $email, $password_hash, $name, $role, $gender, $birth_date, $telegram_username, $avatar_url, $created_at, $updated_at);`
 
-  await session.executeQuery(yql, {
-    $id: TypedValues.uuid(record.id),
+  await executeYql(session, 'insertUser', yql, {
+    $id: TypedValues.utf8(record.id),
     $email: TypedValues.utf8(record.email),
     $password_hash: TypedValues.utf8(record.password_hash),
     $name: TypedValues.utf8(record.name),
@@ -254,9 +312,9 @@ VALUES
 }
 
 async function updateUser(session, id, patch) {
-  const declares = ['DECLARE $id AS Uuid;', 'DECLARE $updated_at AS Timestamp;']
+  const declares = ['DECLARE $id AS Utf8;', 'DECLARE $updated_at AS Timestamp;']
   const assignments = ['updated_at = $updated_at']
-  const params = { $id: TypedValues.uuid(id), $updated_at: TypedValues.timestamp(new Date()) }
+  const params = { $id: TypedValues.utf8(id), $updated_at: TypedValues.timestamp(new Date()) }
 
   for (const [field, value] of Object.entries(patch)) {
     const param = `$${field}`
@@ -273,14 +331,14 @@ async function updateUser(session, id, patch) {
   const yql = `
 ${declares.join('\n')}
 UPDATE ${USERS_TABLE} SET ${assignments.join(', ')} WHERE id = $id;`
-  await session.executeQuery(yql, params)
+  await executeYql(session, 'updateUser', yql, params)
 }
 
 async function deleteUser(session, id) {
   const yql = `
-DECLARE $id AS Uuid;
+DECLARE $id AS Utf8;
 DELETE FROM ${USERS_TABLE} WHERE id = $id;`
-  await session.executeQuery(yql, { $id: TypedValues.uuid(id) })
+  await executeYql(session, 'deleteUser', yql, { $id: TypedValues.utf8(id) })
 }
 
 // ─── Валидация и нормализация ────────────────────────────────────────────────
