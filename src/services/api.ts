@@ -71,16 +71,17 @@ export interface Adventure {
   title: string
   description: string | null
   system: string | null
-  is_online: boolean | null
+  is_online: boolean | string | null
   player_level: string | null
   game_date: string | null
   game_time: string | null
-  duration_hours: number | null
+  /** Числовые поля могут прийти и числом, и строкой — форматтеры приводят тип сами. */
+  duration_hours: number | string | null
   location: string | null
-  price: string | null
-  min_players: number | null
-  max_players: number | null
-  current_players: number
+  price: string | number | null
+  min_players: number | string | null
+  max_players: number | string | null
+  current_players: number | string
   additional_notes: string | null
   status: AdventureStatus
   sync_code: string

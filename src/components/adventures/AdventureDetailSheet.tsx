@@ -4,11 +4,18 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   formatDateTimeLabel,
+  formatDescription,
   formatDurationRange,
+  formatLocation,
+  formatMasterName,
+  formatNotes,
+  formatPlayerLevel,
   formatPlayersRange,
   formatPrice,
+  formatTitle,
   masterInitial,
   parseLogoTop,
+  safeImageUrl,
 } from '@/lib/adventure'
 import type { Adventure } from '@/services/api'
 
@@ -44,6 +51,16 @@ export function AdventureDetailSheet({ adventure, onOpenChange }: AdventureDetai
     toast.info('Ссылка на лобби формируется Мастером')
   }
 
+  // Значения из YDB могут быть любого типа — приводим их защищёнными форматтерами.
+  const posterUrl = safeImageUrl(adventure?.poster_url) ?? assetUrl(FALLBACK_POSTER_PATH)
+  const logoUrl = safeImageUrl(adventure?.logo_url)
+  const logoTop = parseLogoTop(adventure?.logo_position_json)
+  const title = formatTitle(adventure?.title)
+  const masterName = formatMasterName(adventure?.master_name)
+  const location = formatLocation(adventure?.location, adventure?.is_online)
+  const description = formatDescription(adventure?.description)
+  const notes = formatNotes(adventure?.additional_notes)
+
   return (
     <Sheet open={Boolean(adventure)} onOpenChange={onOpenChange}>
       <SheetContent
@@ -63,7 +80,7 @@ export function AdventureDetailSheet({ adventure, onOpenChange }: AdventureDetai
         {adventure ? (
           <div className="flex h-full flex-col">
             <SheetHeader className="sr-only">
-              <SheetTitle>{adventure.title}</SheetTitle>
+              <SheetTitle>{title}</SheetTitle>
               <SheetDescription>Подробности приключения</SheetDescription>
             </SheetHeader>
 
@@ -71,57 +88,50 @@ export function AdventureDetailSheet({ adventure, onOpenChange }: AdventureDetai
               <div
                 className="absolute inset-0 scale-110 bg-cover bg-center"
                 style={{
-                  backgroundImage: `url(${adventure.poster_url || assetUrl(FALLBACK_POSTER_PATH)})`,
+                  backgroundImage: `url(${posterUrl})`,
                   filter: 'blur(40px) brightness(75%)',
                 }}
               />
               <div className="absolute inset-0 bg-black/25" />
               <div className="absolute inset-0 flex items-center justify-center px-6">
-                {adventure.logo_url ? (
+                {logoUrl ? (
                   <img
-                    src={adventure.logo_url}
+                    src={logoUrl}
                     alt=""
                     className="w-3/4 max-w-[75%] object-contain drop-shadow-2xl"
-                    style={{ marginTop: `${(parseLogoTop(adventure.logo_position_json) - 55) / 4}%` }}
+                    style={{ marginTop: `${(logoTop - 55) / 4}%` }}
                   />
                 ) : (
-                  <p className="text-center text-xl font-black tracking-wide text-white uppercase">{adventure.title}</p>
+                  <p className="text-center text-xl font-black tracking-wide text-white uppercase">{title}</p>
                 )}
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 pb-6">
-              <h2 className="mt-4 text-2xl font-black tracking-tight text-white uppercase">{adventure.title}</h2>
-              <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-zinc-300">
-                {adventure.description || 'Описание появится чуть позже.'}
-              </p>
+              <h2 className="mt-4 text-2xl font-black tracking-tight text-white uppercase">{title}</h2>
+              <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-zinc-300">{description}</p>
 
               <dl className="mt-6 grid grid-cols-2 gap-x-2 gap-y-4 border-y border-zinc-800/80 py-4">
                 <SpecCell label="Дата и время" value={formatDateTimeLabel(adventure)} />
-                <SpecCell
-                  label="Место проведения"
-                  value={adventure.location || (adventure.is_online ? 'Онлайн' : 'Уточняется')}
-                />
-                <SpecCell label="Стоимость для игрока" value={formatPrice(adventure.price)} />
-                <SpecCell label="Уровень на старте" value={adventure.player_level || 'Любой'} />
+                <SpecCell label="Место проведения" value={location} />
+                <SpecCell label="Стоимость для игрока" value={formatPrice(adventure?.price)} />
+                <SpecCell label="Уровень на старте" value={formatPlayerLevel(adventure?.player_level)} />
                 <SpecCell
                   label="Количество игроков"
-                  value={formatPlayersRange(adventure.min_players, adventure.max_players)}
+                  value={formatPlayersRange(adventure?.min_players, adventure?.max_players)}
                 />
-                <SpecCell label="Продолжительность" value={formatDurationRange(adventure.duration_hours)} />
+                <SpecCell label="Продолжительность" value={formatDurationRange(adventure?.duration_hours)} />
               </dl>
 
-              {adventure.additional_notes ? (
-                <p className="mt-4 text-xs leading-relaxed text-zinc-400">{adventure.additional_notes}</p>
-              ) : null}
+              {notes ? <p className="mt-4 text-xs leading-relaxed text-zinc-400">{notes}</p> : null}
 
               <div className="mt-5 flex items-center gap-3">
                 <Avatar size="lg">
-                  <AvatarFallback>{masterInitial(adventure.master_name)}</AvatarFallback>
+                  <AvatarFallback>{masterInitial(adventure?.master_name)}</AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="text-[10px] font-bold text-zinc-500">МАСТЕР ИГРЫ</p>
-                  <p className="text-xs font-bold text-zinc-100 uppercase">{adventure.master_name}</p>
+                  <p className="text-xs font-bold text-zinc-100 uppercase">{masterName}</p>
                 </div>
               </div>
             </div>

@@ -1,5 +1,14 @@
 import { UserRound } from 'lucide-react'
-import { formatDateTimeLabel, formatPrice, formatTimeAndDate, parseLogoTop } from '@/lib/adventure'
+import {
+  formatDateTimeLabel,
+  formatLocation,
+  formatMasterName,
+  formatPrice,
+  formatTimeAndDate,
+  formatTitle,
+  parseLogoTop,
+  safeImageUrl,
+} from '@/lib/adventure'
 import type { Adventure } from '@/services/api'
 
 const FALLBACK_POSTER_PATH = 'demo-poster.svg'
@@ -14,9 +23,13 @@ interface AdventureCardProps {
 }
 
 export function AdventureCard({ adventure, onOpen }: AdventureCardProps) {
-  const posterUrl = adventure.poster_url || assetUrl(FALLBACK_POSTER_PATH)
+  // Все поля проходят через защищённые форматтеры: из YDB могут прийти числа, null или мусор.
+  const posterUrl = safeImageUrl(adventure.poster_url) ?? assetUrl(FALLBACK_POSTER_PATH)
+  const logoUrl = safeImageUrl(adventure.logo_url)
   const logoTop = parseLogoTop(adventure.logo_position_json)
-  const location = adventure.location || (adventure.is_online ? 'Онлайн' : 'Место уточняется')
+  const location = formatLocation(adventure.location, adventure.is_online)
+  const title = formatTitle(adventure.title)
+  const masterName = formatMasterName(adventure.master_name)
 
   return (
     <button
@@ -38,9 +51,9 @@ export function AdventureCard({ adventure, onOpen }: AdventureCardProps) {
           {formatDateTimeLabel(adventure)}
         </span>
 
-        {adventure.logo_url ? (
+        {logoUrl ? (
           <img
-            src={adventure.logo_url}
+            src={logoUrl}
             alt=""
             className="absolute left-1/2 w-2/3 -translate-x-1/2 object-contain drop-shadow-lg"
             style={{ top: `${logoTop}%` }}
@@ -48,14 +61,14 @@ export function AdventureCard({ adventure, onOpen }: AdventureCardProps) {
         ) : null}
       </div>
 
-      <h3 className="mt-3 text-base font-black tracking-wide text-white uppercase">{adventure.title}</h3>
+      <h3 className="mt-3 text-base font-black tracking-wide text-white uppercase">{title}</h3>
 
       <p className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-zinc-400 uppercase">
         <span>{formatTimeAndDate(adventure)}</span>
         <span className="text-zinc-600">•</span>
         <span className="inline-flex items-center gap-1">
           <UserRound className="size-3" />
-          {adventure.master_name}
+          {masterName}
         </span>
       </p>
 

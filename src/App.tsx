@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Component, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Loader2, LogIn, Plus } from 'lucide-react'
 import { AdventureCard } from '@/components/adventures/AdventureCard'
 import { AdventureDetailSheet } from '@/components/adventures/AdventureDetailSheet'
@@ -82,11 +82,48 @@ function buildDemoAdventures(): Adventure[] {
   ]
 }
 
+/** Оставляем в списке только похожие на приключение объекты (защита от мусора в БД). */
+function normalizeAdventures(value: unknown): Adventure[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+  return value.filter((item) => typeof item === 'object' && item !== null && 'id' in item) as Adventure[]
+}
+
+/**
+ * Предохранитель витрины: битые данные одного приключения не должны
+ * уронить всю афишу в чёрный экран.
+ */
+class AdventureBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('Ошибка отображения приключения:', error)
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children
+  }
+}
+
+function BrokenCard() {
+  return (
+    <div className="flex aspect-[4/5] items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-center text-[10px] font-bold text-zinc-600 uppercase">
+      Не удалось показать приключение
+    </div>
+  )
+}
+
 /** Загружает афишу; если активных игр нет или запрос упал — отдаёт демо-набор. */
 async function fetchAdventures(): Promise<Adventure[]> {
   try {
     const response = await api.getAdventures()
-    return response.adventures.length > 0 ? response.adventures : buildDemoAdventures()
+    const list = normalizeAdventures(response.adventures)
+    return list.length > 0 ? list : buildDemoAdventures()
   } catch {
     // витрина не должна пустовать из-за сетевой ошибки
     return buildDemoAdventures()
@@ -180,7 +217,9 @@ function HomeScreen() {
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
             {adventures.map((adventure) => (
-              <AdventureCard key={adventure.id} adventure={adventure} onOpen={setSelectedAdventure} />
+              <AdventureBoundary key={adventure.id} fallback={<BrokenCard />}>
+                <AdventureCard adventure={adventure} onOpen={setSelectedAdventure} />
+              </AdventureBoundary>
             ))}
           </div>
         )}
@@ -195,14 +234,16 @@ function HomeScreen() {
           void loadAdventures()
         }}
       />
-      <AdventureDetailSheet
-        adventure={selectedAdventure}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedAdventure(null)
-          }
-        }}
-      />
+      <AdventureBoundary fallback={null}>
+        <AdventureDetailSheet
+          adventure={selectedAdventure}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedAdventure(null)
+            }
+          }}
+        />
+      </AdventureBoundary>
     </div>
   )
 }
