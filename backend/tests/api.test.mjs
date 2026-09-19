@@ -381,6 +381,39 @@ check(
 response = await call('POST', '/bot/sync', { headers: botHeaders, body: { sync_code: 'PEDIN-0000', tg_group_id: '-1' } })
 check('bot/sync неизвестный код -> 404', response.statusCode === 404)
 
+// Группа уже занята другим активным приключением → 409
+db.adventureRows = [
+  { id: ADVENTURE_ID, master_id: USER_ID, status: 'draft', sync_code: 'PEDIN-4819', title: 'Тени Пединбурга' },
+  { id: 'other-adventure', status: 'active', tg_group_id: '-100500', title: 'Чужое приключение' },
+]
+response = await call('POST', '/bot/sync', {
+  headers: botHeaders,
+  body: { sync_code: 'PEDIN-4819', tg_group_id: '-100500' },
+})
+const groupConflict = JSON.parse(response.body)
+check(
+  'bot/sync: группа занята другим приключением -> 409',
+  response.statusCode === 409 && groupConflict.error === 'GROUP_ALREADY_BOUND',
+  `status=${response.statusCode} body=${response.body.slice(0, 110)}`,
+)
+
+// Повторная привязка той же группы к тому же приключению разрешена
+db.adventureRows = [
+  {
+    id: ADVENTURE_ID,
+    master_id: USER_ID,
+    status: 'synced',
+    sync_code: 'PEDIN-4819',
+    title: 'Тени Пединбурга',
+    tg_group_id: '-100500',
+  },
+]
+response = await call('POST', '/bot/sync', {
+  headers: botHeaders,
+  body: { sync_code: 'PEDIN-4819', tg_group_id: '-100500' },
+})
+check('bot/sync: повторная привязка того же приключения -> 200', response.statusCode === 200, `status=${response.statusCode}`)
+
 // member-update: joined ограничивается max_players
 db.adventureRows = [
   { id: ADVENTURE_ID, status: 'synced', tg_group_id: '-100500', title: 'Тени Пединбурга', current_players: 2, max_players: 3 },

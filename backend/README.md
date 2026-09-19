@@ -114,7 +114,7 @@ YDB_ERROR_OPERATION: <операция: driver.ready(timeout) | verifySchema | f
 | `GET /adventures/draft-status?adventure_id=…` | Мастер | статус привязки группы (`status`, `tg_group_id`, `tg_invite_link`) |
 | `POST /adventures/publish` | Мастер | публикация афиши: `status = active`, постер, логотип, позиция логотипа |
 | `GET /adventures` | публичный | список активных приключений, сортировка по дате игры |
-| `POST /bot/sync` | бот (`X-Bot-Secret`) | привязать Telegram-группу к приключению по `sync_code` |
+| `POST /bot/sync` | бот (`X-Bot-Secret`) | привязать Telegram-группу к приключению по `sync_code` (если группа уже занята другим активным приключением — `409 GROUP_ALREADY_BOUND`) |
 | `POST /bot/member-update` | бот (`X-Bot-Secret`) | `joined`/`left`: `current_players` ±1 в границах `[0, max_players]` |
 
 ```bash
@@ -319,6 +319,7 @@ curl -X DELETE https://<api-host>/auth/me -H "X-Auth-Token: $TOKEN"
 | `YDB_NOT_READY` | 503 | драйвер не смог подключиться к YDB за 10 секунд |
 | `FORBIDDEN_ROLE` | 403 | действие доступно только Мастеру игры |
 | `ADVENTURE_NOT_FOUND` | 404 | приключение не найдено (или принадлежит другому мастеру) |
+| `GROUP_ALREADY_BOUND` | 409 | эта группа уже привязана к другому активному приключению |
 | `INVALID_BOT_SECRET` | 401 | неверный или отсутствующий заголовок `X-Bot-Secret` |
 | `SYNC_CODE_CONFLICT` | 500 | не удалось сгенерировать свободный код синхронизации |
 

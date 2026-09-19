@@ -1128,6 +1128,12 @@ async function handleBotSync(event, body) {
       throw new ApiError(404, 'ADVENTURE_NOT_FOUND', `Приключение с кодом ${syncCode} не найдено`)
     }
 
+    // Группа не должна обслуживать два активных приключения одновременно.
+    const boundAdventure = await findAdventureByTgGroupId(session, tgGroupId)
+    if (boundAdventure && boundAdventure.id !== found.id) {
+      throw new ApiError(409, 'GROUP_ALREADY_BOUND', 'Эта группа уже привязана к активному приключению')
+    }
+
     await updateAdventure(session, found.id, {
       tg_group_id: tgGroupId,
       tg_invite_link: tgInviteLink,

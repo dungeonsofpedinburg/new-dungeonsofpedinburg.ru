@@ -191,13 +191,19 @@ export function formatDurationRange(hours: unknown): string {
   return `ОТ ${value} ДО ${to} ${pluralize(to, 'ЧАСА', 'ЧАСОВ', 'ЧАСОВ')}`
 }
 
-/** Место проведения капсом; для онлайна — «ОНЛАЙН», иначе «МЕСТО УТОЧНЯЕТСЯ». */
-export function formatLocation(value: unknown, isOnline?: unknown): string {
+/** Короткая подпись места для бейджа: «The Rooks», «Онлайн», «Место уточняется». */
+export function formatLocationShort(value: unknown, isOnline?: unknown): string {
   const text = toText(value)
   if (text) {
-    return text.toUpperCase()
+    return text
   }
-  return isOnline === true || toText(isOnline).toLowerCase() === 'true' ? 'ОНЛАЙН' : 'МЕСТО УТОЧНЯЕТСЯ'
+  return isOnline === true || toText(isOnline).toLowerCase() === 'true' ? 'Онлайн' : 'Место уточняется'
+}
+
+/** Место проведения капсом; для онлайна — «ОНЛАЙН», иначе «МЕСТО УТОЧНЯЕТСЯ». */
+export function formatLocation(value: unknown, isOnline?: unknown): string {
+  const text = formatLocationShort(value, isOnline)
+  return text.toUpperCase()
 }
 
 /** Название приключения (пустое значение → «БЕЗ НАЗВАНИЯ»). */
@@ -259,6 +265,47 @@ export function masterInitial(name: unknown): string {
 /** Уровень игроков на старте; пусто → «ЛЮБОЙ». */
 export function formatPlayerLevel(value: unknown): string {
   return toText(value).toUpperCase() || 'ЛЮБОЙ'
+}
+
+/** Значение цены без валюты: 990 → «990»; нечисловой текст — как есть; пусто → null. */
+export function formatPriceValue(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 0 ? String(value) : null
+  }
+  const text = toText(value)
+  if (!text) {
+    return null
+  }
+  const numeric = Number(text.replace(/[^\d.,]/g, '').replace(',', '.'))
+  return Number.isFinite(numeric) && numeric > 0 ? String(numeric) : text
+}
+
+/** Игровая система приключения. */
+export function formatSystem(value: unknown): string {
+  return toText(value) || 'Система не указана'
+}
+
+/** Формат проведения: «Онлайн» или «Офлайн в баре». */
+export function formatFormat(value: unknown): string {
+  const text = toText(value).toLowerCase()
+  return value === true || text === 'true' || text === 'онлайн' || text === 'online' ? 'Онлайн' : 'Офлайн в баре'
+}
+
+export interface PlayerSlots {
+  current: number
+  max: number
+  free: number
+}
+
+/**
+ * Слоты игроков. Мастер и бот в слотах не учитываются: `current_players`
+ * из базы — это строго записавшиеся игроки.
+ */
+export function parsePlayerSlots(current: unknown, max: unknown): PlayerSlots {
+  const maxPlayers = Math.max(Math.trunc(toNumber(max) ?? 0), 0)
+  const rawCurrent = Math.max(Math.trunc(toNumber(current) ?? 0), 0)
+  const occupied = maxPlayers > 0 ? Math.min(rawCurrent, maxPlayers) : rawCurrent
+  return { current: occupied, max: maxPlayers, free: Math.max(maxPlayers - occupied, 0) }
 }
 
 /** Дополнительные особенности; пусто → null (блок не рендерится). */

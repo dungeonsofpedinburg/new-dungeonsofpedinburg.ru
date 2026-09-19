@@ -1,36 +1,64 @@
-import { X } from 'lucide-react'
+import { Calendar, Clock, Coins, Dices, MapPin, Send, User, UserPlus, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { AspectRatio } from '@/components/ui/aspect-ratio'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
-  formatDateTimeLabel,
+  formatDateLabel,
   formatDescription,
-  formatDurationRange,
-  formatLocation,
+  formatFormat,
+  formatLocationShort,
   formatMasterName,
-  formatNotes,
-  formatPlayerLevel,
-  formatPlayersRange,
-  formatPrice,
+  formatPriceValue,
+  formatSystem,
+  formatTimeLabel,
   formatTitle,
   masterInitial,
   parseLogoTop,
+  parsePlayerSlots,
   safeImageUrl,
 } from '@/lib/adventure'
 import type { Adventure } from '@/services/api'
 
 const FALLBACK_POSTER_PATH = 'demo-poster.svg'
+const MAX_RENDERED_SLOTS = 10
 
 function assetUrl(path: string): string {
   return new URL(`${import.meta.env.BASE_URL}${path}`, window.location.href).href
 }
 
-function SpecCell({ label, value }: { label: string; value: string }) {
+/** Строка характеристик: иконка в квадрате + подпись и значение. */
+function SpecRow({ icons, label, value }: { icons: LucideIcon[]; label: string; value: string }) {
   return (
-    <div>
-      <dt className="text-[10px] font-bold tracking-wider text-zinc-500 uppercase">{label}</dt>
-      <dd className="mt-0.5 text-xs font-bold text-zinc-100 uppercase">{value}</dd>
+    <div className="flex items-start gap-3">
+      <span className="flex size-8 shrink-0 items-center justify-center gap-0.5 rounded-lg bg-muted text-muted-foreground">
+        {icons.map((Icon, index) => (
+          <Icon key={index} className="size-4" />
+        ))}
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium break-words">{value}</p>
+      </div>
     </div>
+  )
+}
+
+/** Круглый слот игрока: занятый — заливка, свободный — пунктир. */
+function PlayerSlot({ filled }: { filled: boolean }) {
+  if (filled) {
+    return (
+      <span className="flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <User className="size-3.5" />
+      </span>
+    )
+  }
+  return (
+    <span className="flex size-6 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 bg-muted/20 text-muted-foreground">
+      <UserPlus className="size-3.5" />
+    </span>
   )
 }
 
@@ -44,107 +72,115 @@ export function AdventureDetailSheet({ adventure, onOpenChange }: AdventureDetai
     if (!adventure) {
       return
     }
-    if (adventure.tg_invite_link) {
-      window.open(adventure.tg_invite_link, '_blank', 'noopener,noreferrer')
+    const inviteLink = safeImageUrl(adventure.tg_invite_link)
+    if (inviteLink) {
+      window.open(inviteLink, '_blank', 'noopener,noreferrer')
       return
     }
     toast.info('Ссылка на лобби формируется Мастером')
   }
 
-  // Значения из YDB могут быть любого типа — приводим их защищёнными форматтерами.
   const posterUrl = safeImageUrl(adventure?.poster_url) ?? assetUrl(FALLBACK_POSTER_PATH)
   const logoUrl = safeImageUrl(adventure?.logo_url)
   const logoTop = parseLogoTop(adventure?.logo_position_json)
   const title = formatTitle(adventure?.title)
   const masterName = formatMasterName(adventure?.master_name)
-  const location = formatLocation(adventure?.location, adventure?.is_online)
+  const system = formatSystem(adventure?.system)
+  const location = formatLocationShort(adventure?.location, adventure?.is_online)
   const description = formatDescription(adventure?.description)
-  const notes = formatNotes(adventure?.additional_notes)
+  const dateLabel = formatDateLabel(adventure?.game_date)
+  const timeLabel = formatTimeLabel(adventure?.game_time)
+  const priceValue = formatPriceValue(adventure?.price)
+  const slots = parsePlayerSlots(adventure?.current_players, adventure?.max_players)
+  const renderedSlots = Math.min(slots.max, MAX_RENDERED_SLOTS)
+  const dateTimeLabel = [dateLabel ?? 'Дата уточняется', timeLabel].filter(Boolean).join(', ')
 
   return (
     <Sheet open={Boolean(adventure)} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        className="w-full gap-0 border-l border-zinc-800 bg-zinc-900 p-0 sm:max-w-md"
-      >
-        <SheetClose asChild>
-          <button
-            type="button"
-            aria-label="Закрыть"
-            className="absolute top-3 right-3 z-10 flex size-8 cursor-pointer items-center justify-center rounded-full bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70"
-          >
-            <X className="size-4" />
-          </button>
-        </SheetClose>
+      <SheetContent side="right" className="w-full gap-0 sm:max-w-md">
         {adventure ? (
-          <div className="flex h-full flex-col">
-            <SheetHeader className="sr-only">
-              <SheetTitle>{title}</SheetTitle>
-              <SheetDescription>Подробности приключения</SheetDescription>
+          <div className="flex h-full flex-col overflow-hidden">
+            <SheetHeader className="gap-3">
+              <AspectRatio ratio={16 / 9} className="overflow-hidden rounded-lg border border-border bg-muted">
+                <img
+                  src={posterUrl}
+                  alt=""
+                  className="absolute inset-0 size-full scale-105 object-cover"
+                  style={{ filter: 'blur(3px) brightness(0.85)' }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center p-4">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt=""
+                      className="max-h-full w-3/4 object-contain drop-shadow-xl"
+                      style={{ marginTop: `${(logoTop - 55) / 4}%` }}
+                    />
+                  ) : (
+                    <span className="text-center text-base font-bold text-white">{title}</span>
+                  )}
+                </div>
+              </AspectRatio>
+
+              <SheetTitle className="text-xl font-extrabold tracking-tight">{title}</SheetTitle>
+              <SheetDescription>
+                {system} · {formatFormat(adventure.is_online)}
+              </SheetDescription>
             </SheetHeader>
 
-            <div className="relative h-48 shrink-0 overflow-hidden">
-              <div
-                className="absolute inset-0 scale-110 bg-cover bg-center"
-                style={{
-                  backgroundImage: `url(${posterUrl})`,
-                  filter: 'blur(40px) brightness(75%)',
-                }}
-              />
-              <div className="absolute inset-0 bg-black/25" />
-              <div className="absolute inset-0 flex items-center justify-center px-6">
-                {logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt=""
-                    className="w-3/4 max-w-[75%] object-contain drop-shadow-2xl"
-                    style={{ marginTop: `${(logoTop - 55) / 4}%` }}
-                  />
-                ) : (
-                  <p className="text-center text-xl font-black tracking-wide text-white uppercase">{title}</p>
-                )}
+            <div className="flex-1 space-y-5 overflow-y-auto px-4 pt-4 pb-2">
+              <div className="space-y-4">
+                <SpecRow icons={[Calendar, Clock]} label="Дата и время" value={dateTimeLabel} />
+                <SpecRow icons={[MapPin]} label="Место проведения" value={location} />
+                <SpecRow icons={[Dices]} label="Формат" value={formatFormat(adventure.is_online)} />
+                <SpecRow icons={[Coins]} label="Стоимость" value={priceValue ? `${priceValue} ₽` : 'Уточняется'} />
               </div>
-            </div>
 
-            <div className="flex-1 overflow-y-auto px-5 pb-6">
-              <h2 className="mt-4 text-2xl font-black tracking-tight text-white uppercase">{title}</h2>
-              <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-zinc-300">{description}</p>
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-sm font-medium">Свободные места</p>
 
-              <dl className="mt-6 grid grid-cols-2 gap-x-2 gap-y-4 border-y border-zinc-800/80 py-4">
-                <SpecCell label="Дата и время" value={formatDateTimeLabel(adventure)} />
-                <SpecCell label="Место проведения" value={location} />
-                <SpecCell label="Стоимость для игрока" value={formatPrice(adventure?.price)} />
-                <SpecCell label="Уровень на старте" value={formatPlayerLevel(adventure?.player_level)} />
-                <SpecCell
-                  label="Количество игроков"
-                  value={formatPlayersRange(adventure?.min_players, adventure?.max_players)}
-                />
-                <SpecCell label="Продолжительность" value={formatDurationRange(adventure?.duration_hours)} />
-              </dl>
+                {slots.max > 0 ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {Array.from({ length: renderedSlots }, (_, index) => (
+                      <PlayerSlot key={index} filled={index < slots.current} />
+                    ))}
+                    <span className="text-xs text-muted-foreground">
+                      {slots.current}/{slots.max}
+                    </span>
+                  </div>
+                ) : null}
 
-              {notes ? <p className="mt-4 text-xs leading-relaxed text-zinc-400">{notes}</p> : null}
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  {slots.max > 0
+                    ? `Занято ${slots.current} из ${slots.max} мест. Свободно ${slots.free} мест. (Мастер игры не занимает слот игрока)`
+                    : `Уже записалось игроков: ${slots.current}. (Мастер игры не занимает слот игрока)`}
+                </p>
+              </div>
 
-              <div className="mt-5 flex items-center gap-3">
+              <div>
+                <p className="text-sm font-medium">Описание</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{description}</p>
+              </div>
+
+              <div className="flex items-center gap-3">
                 <Avatar size="lg">
-                  <AvatarFallback>{masterInitial(adventure?.master_name)}</AvatarFallback>
+                  <AvatarFallback>{masterInitial(adventure.master_name)}</AvatarFallback>
                 </Avatar>
-                <div>
-                  <p className="text-[10px] font-bold text-zinc-500">МАСТЕР ИГРЫ</p>
-                  <p className="text-xs font-bold text-zinc-100 uppercase">{masterName}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{masterName}</p>
+                  <Badge variant="secondary" className="mt-1">
+                    Мастер игры
+                  </Badge>
                 </div>
               </div>
             </div>
 
-            <div className="shrink-0 border-t border-zinc-800 bg-zinc-900 p-4">
-              <button
-                type="button"
-                onClick={handleJoin}
-                className="w-full cursor-pointer rounded-xl bg-[#ec4899] py-6 text-sm font-black tracking-wider text-white uppercase shadow-lg transition-all hover:bg-pink-600"
-              >
-                Зайти в лобби
-              </button>
-            </div>
+            <SheetFooter className="border-t border-border">
+              <Button size="lg" className="w-full font-bold" onClick={handleJoin}>
+                <Send />
+                ЗАЙТИ В ЛОББИ
+              </Button>
+            </SheetFooter>
           </div>
         ) : null}
       </SheetContent>

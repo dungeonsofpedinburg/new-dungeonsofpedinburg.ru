@@ -112,7 +112,7 @@ class AdventureBoundary extends Component<{ children: ReactNode; fallback: React
 
 function BrokenCard() {
   return (
-    <div className="flex aspect-[4/5] items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-center text-[10px] font-bold text-zinc-600 uppercase">
+    <div className="flex aspect-[4/5] items-center justify-center rounded-xl border border-border bg-muted/20 p-3 text-center text-xs font-medium text-muted-foreground">
       Не удалось показать приключение
     </div>
   )
@@ -165,39 +165,30 @@ function HomeScreen() {
 
   return (
     // Тема проекта — всегда dark, класс вешаем на корневой контейнер.
-    <div className="dark flex min-h-svh flex-col bg-black text-zinc-100">
+    <div className="dark flex min-h-svh flex-col bg-background text-foreground">
       <Header
         onRequestAuth={() => setIsAuthOpen(true)}
         onRequestProfile={() => setIsProfileOpen(true)}
         onRequestCreateAdventure={() => setIsCreateAdventureOpen(true)}
       />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-12">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="font-heading text-xl font-black tracking-wide text-white uppercase sm:text-2xl">Список игр</h1>
-            <p className="truncate text-xs text-zinc-500 uppercase">{subtitle}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Список игр</h1>
+            <p className="mt-1 truncate text-sm text-muted-foreground">{subtitle}</p>
           </div>
 
           <div className="flex items-center gap-2">
             {isMaster ? (
-              <Button
-                size="sm"
-                onClick={() => setIsCreateAdventureOpen(true)}
-                className="cursor-pointer bg-[#ec4899] font-black tracking-wider text-white uppercase hover:bg-pink-600"
-              >
+              <Button size="sm" className="font-bold" onClick={() => setIsCreateAdventureOpen(true)}>
                 <Plus />
                 Создать приключение
               </Button>
             ) : null}
 
             {!isAuthenticated ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsAuthOpen(true)}
-                className="cursor-pointer border-zinc-700 font-bold tracking-wider text-zinc-200 uppercase hover:bg-zinc-800 hover:text-white"
-              >
+              <Button size="sm" variant="outline" className="font-bold" onClick={() => setIsAuthOpen(true)}>
                 <LogIn />
                 Войти
               </Button>
@@ -206,16 +197,16 @@ function HomeScreen() {
         </div>
 
         {isLoading || isLoadingAdventures ? (
-          <div className="flex items-center justify-center gap-3 py-20 text-sm text-zinc-500">
+          <div className="flex items-center justify-center gap-3 py-20 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
             Загружаем игры…
           </div>
         ) : adventures.length === 0 ? (
-          <p className="py-20 text-center text-sm text-zinc-500">
+          <p className="py-20 text-center text-sm text-muted-foreground">
             Пока нет опубликованных игр — станьте первым Мастером!
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {adventures.map((adventure) => (
               <AdventureBoundary key={adventure.id} fallback={<BrokenCard />}>
                 <AdventureCard adventure={adventure} onOpen={setSelectedAdventure} />
