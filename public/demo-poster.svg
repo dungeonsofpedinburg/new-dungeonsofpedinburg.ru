@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000" role="img" aria-label="Демо-постер приключения">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b1030"/>
+      <stop offset="55%" stop-color="#2b1b4d"/>
+      <stop offset="100%" stop-color="#0a0713"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="36%" r="52%">
+      <stop offset="0%" stop-color="#f2b35c" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#f2b35c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fog" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0a0713" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0a0713" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="1000" fill="url(#sky)"/>
+  <circle cx="400" cy="360" r="250" fill="url(#glow)"/>
+
+  <g fill="#f7e9c9" opacity="0.85">
+    <circle cx="120" cy="120" r="2.5"/>
+    <circle cx="210" cy="70" r="1.8"/>
+    <circle cx="330" cy="140" r="2"/>
+    <circle cx="470" cy="90" r="2.4"/>
+    <circle cx="600" cy="150" r="1.8"/>
+    <circle cx="690" cy="80" r="2.2"/>
+    <circle cx="160" cy="260" r="1.6"/>
+    <circle cx="640" cy="260" r="1.6"/>
+  </g>
+
+  <circle cx="400" cy="330" r="120" fill="#f6d68a" opacity="0.9"/>
+  <circle cx="400" cy="330" r="120" fill="none" stroke="#f9e6bd" stroke-width="3" opacity="0.6"/>
+
+  <g fill="#0d0a18">
+    <path d="M0 760 L80 700 L160 760 L240 690 L330 760 L420 700 L520 770 L610 700 L700 765 L800 710 L800 1000 L0 1000 Z" opacity="0.9"/>
+  </g>
+  <g fill="#141024">
+    <path d="M60 830 L60 740 Q100 700 140 740 L140 830 Z"/>
+    <path d="M160 830 L160 760 Q200 720 240 760 L240 830 Z"/>
+    <path d="M560 830 L560 750 Q600 710 640 750 L640 830 Z"/>
+    <path d="M660 830 L660 770 Q700 730 740 770 L740 830 Z"/>
+  </g>
+
+  <rect y="620" width="800" height="380" fill="url(#fog)"/>
+
+  <g font-family="Georgia, 'Times New Roman', serif" text-anchor="middle">
+    <text x="400" y="880" font-size="52" fill="#f4d99b" letter-spacing="6">ПОДЗЕМЕЛЬЯ</text>
+    <text x="400" y="940" font-size="42" fill="#c9a86a" letter-spacing="10">ПЕДИНБУРГА</text>
+  </g>
+</svg>

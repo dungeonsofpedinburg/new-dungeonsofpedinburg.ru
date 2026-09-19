@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Dices, Loader2, LogIn, RefreshCcw, Sparkles, UserRound } from 'lucide-react'
+import { Dices, Loader2, LogIn, Plus, RefreshCcw, Sparkles, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
+import { CreateAdventureModal } from '@/components/adventures/CreateAdventureModal'
 import { AuthModal } from '@/components/auth/AuthModal'
 import { Header } from '@/components/Header'
 import { ProfileModal } from '@/components/profile/ProfileModal'
@@ -31,7 +32,13 @@ function LoadingCard() {
   )
 }
 
-function HeroGreetingCard({ onOpenProfile }: { onOpenProfile: () => void }) {
+function HeroGreetingCard({
+  onOpenProfile,
+  onCreateAdventure,
+}: {
+  onOpenProfile: () => void
+  onCreateAdventure: () => void
+}) {
   const { user, isMaster } = useAuth()
 
   if (!user) {
@@ -61,8 +68,14 @@ function HeroGreetingCard({ onOpenProfile }: { onOpenProfile: () => void }) {
         <InfoRow label="Дата рождения" value={user.birth_date ?? '—'} />
       </CardContent>
 
-      <CardFooter>
-        <Button variant="outline" size="lg" className="w-full" onClick={onOpenProfile}>
+      <CardFooter className="flex-col gap-2 sm:flex-row">
+        {isMaster ? (
+          <Button size="lg" className="w-full sm:flex-1" onClick={onCreateAdventure}>
+            <Plus />
+            Создать приключение
+          </Button>
+        ) : null}
+        <Button variant="outline" size="lg" className="w-full sm:flex-1" onClick={onOpenProfile}>
           <UserRound />
           Мой профиль
         </Button>
@@ -123,17 +136,25 @@ function HomeScreen() {
   const { isLoading, isAuthenticated } = useAuth()
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isCreateAdventureOpen, setIsCreateAdventureOpen] = useState(false)
 
   return (
     // Тема проекта — всегда dark, класс вешаем на корневой контейнер.
     <div className="dark flex min-h-svh flex-col bg-background text-foreground">
-      <Header onRequestAuth={() => setIsAuthOpen(true)} onRequestProfile={() => setIsProfileOpen(true)} />
+      <Header
+        onRequestAuth={() => setIsAuthOpen(true)}
+        onRequestProfile={() => setIsProfileOpen(true)}
+        onRequestCreateAdventure={() => setIsCreateAdventureOpen(true)}
+      />
 
       <main className="flex flex-1 items-center justify-center px-4 py-8">
         {isLoading ? (
           <LoadingCard />
         ) : isAuthenticated ? (
-          <HeroGreetingCard onOpenProfile={() => setIsProfileOpen(true)} />
+          <HeroGreetingCard
+            onOpenProfile={() => setIsProfileOpen(true)}
+            onCreateAdventure={() => setIsCreateAdventureOpen(true)}
+          />
         ) : (
           <GuestCard onRequestAuth={() => setIsAuthOpen(true)} />
         )}
@@ -141,6 +162,7 @@ function HomeScreen() {
 
       <AuthModal open={isAuthOpen} onOpenChange={setIsAuthOpen} />
       <ProfileModal open={isProfileOpen} onOpenChange={setIsProfileOpen} />
+      <CreateAdventureModal isOpen={isCreateAdventureOpen} onOpenChange={setIsCreateAdventureOpen} />
     </div>
   )
 }

@@ -18,9 +18,11 @@ interface HeaderProps {
   onRequestAuth: () => void
   /** Открыть модалку профиля. */
   onRequestProfile: () => void
+  /** Открыть визард создания приключения (только Мастер). */
+  onRequestCreateAdventure: () => void
 }
 
-export function Header({ onRequestAuth, onRequestProfile }: HeaderProps) {
+export function Header({ onRequestAuth, onRequestProfile, onRequestCreateAdventure }: HeaderProps) {
   const { user, isAuthenticated, isMaster, logout } = useAuth()
   const initials = user && user.name.trim() ? user.name.trim().charAt(0).toUpperCase() : '?'
 
@@ -62,7 +64,7 @@ export function Header({ onRequestAuth, onRequestProfile }: HeaderProps) {
                 Мой профиль
               </DropdownMenuItem>
               {isMaster ? (
-                <DropdownMenuItem onSelect={() => toast.info('Конструктор приключений появится в следующем обновлении')}>
+                <DropdownMenuItem onSelect={onRequestCreateAdventure}>
                   <Sparkles />
                   Создать приключение
                 </DropdownMenuItem>

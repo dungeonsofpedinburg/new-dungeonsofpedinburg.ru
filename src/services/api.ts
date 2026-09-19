@@ -62,6 +62,82 @@ export interface UpdateProfilePayload {
   avatar_url?: string | null
 }
 
+export type AdventureStatus = 'draft' | 'synced' | 'active'
+
+export interface Adventure {
+  id: string
+  master_id: string
+  master_name: string
+  title: string
+  description: string | null
+  system: string | null
+  is_online: boolean | null
+  player_level: string | null
+  game_date: string | null
+  game_time: string | null
+  duration_hours: number | null
+  location: string | null
+  price: string | null
+  min_players: number | null
+  max_players: number | null
+  current_players: number
+  additional_notes: string | null
+  status: AdventureStatus
+  sync_code: string
+  tg_group_id: string | null
+  tg_invite_link: string | null
+  poster_url: string | null
+  logo_url: string | null
+  logo_position_json: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+/** Данные шагов 1–2 визарда Мастера. */
+export interface AdventureDraftPayload {
+  title: string
+  description?: string
+  system?: string
+  is_online?: boolean
+  player_level?: string
+  game_date?: string
+  game_time?: string
+  duration_hours?: number
+  location?: string
+  price?: number | string
+  min_players?: number
+  max_players?: number
+  additional_notes?: string
+}
+
+export interface AdventureDraftResponse {
+  success: boolean
+  adventure_id: string
+  sync_code: string
+}
+
+export interface DraftStatusResponse {
+  status: AdventureStatus
+  tg_group_id: string | null
+  tg_invite_link: string | null
+}
+
+export interface AdventureLogoPosition {
+  /** Вертикальное положение логотипа в процентах (0–80). */
+  top: number
+}
+
+export interface PublishAdventurePayload {
+  adventure_id: string
+  poster_url?: string
+  logo_url?: string
+  logo_position_json?: string
+}
+
+export interface AdventureListResponse {
+  adventures: Adventure[]
+}
+
 /** Ошибка API: `code` приходит от бэкенда (`VALIDATION_ERROR`, `INVALID_CREDENTIALS`, …). */
 export class ApiError extends Error {
   readonly status: number = 500
@@ -80,6 +156,7 @@ interface RequestOptions {
   route: string
   body?: unknown
   token?: string | null
+  query?: Record<string, string | number | undefined>
 }
 
 interface ErrorPayload {
@@ -90,9 +167,15 @@ interface ErrorPayload {
   errorCode?: number
 }
 
-async function request<T>({ method, route, body, token }: RequestOptions): Promise<T> {
+async function request<T>({ method, route, body, token, query }: RequestOptions): Promise<T> {
   const url = new URL(API_BASE_URL)
   url.searchParams.set(ROUTE_QUERY_PARAM, route)
+
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value))
+    }
+  }
 
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) {
@@ -163,4 +246,25 @@ export const api = {
     request<{ user: ApiUser }>({ method: 'PUT', route: '/auth/me', body: omitEmpty({ ...data }), token }),
 
   deleteMe: (token: string) => request<{ success: boolean }>({ method: 'DELETE', route: '/auth/me', token }),
+
+  createAdventureDraft: (data: AdventureDraftPayload, token: string) =>
+    request<AdventureDraftResponse>({ method: 'POST', route: '/adventures/draft', body: omitEmpty({ ...data }), token }),
+
+  getDraftStatus: (adventureId: string, token: string) =>
+    request<DraftStatusResponse>({
+      method: 'GET',
+      route: '/adventures/draft-status',
+      query: { adventure_id: adventureId },
+      token,
+    }),
+
+  publishAdventure: (data: PublishAdventurePayload, token: string) =>
+    request<{ success: boolean; adventure: Adventure }>({
+      method: 'POST',
+      route: '/adventures/publish',
+      body: omitEmpty({ ...data }),
+      token,
+    }),
+
+  getAdventures: () => request<AdventureListResponse>({ method: 'GET', route: '/adventures' }),
 }

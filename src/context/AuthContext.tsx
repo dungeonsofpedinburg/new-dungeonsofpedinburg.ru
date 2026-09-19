@@ -20,6 +20,8 @@ export const TOKEN_STORAGE_KEY = 'pedinburg_token'
 
 interface AuthContextValue {
   user: ApiUser | null
+  /** JWT текущей сессии (нужен сервисам для защищённых запросов). */
+  token: string | null
   isLoading: boolean
   isAuthenticated: boolean
   isMaster: boolean
@@ -147,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      token,
       isLoading,
       isAuthenticated: Boolean(user),
       isMaster: user?.role === 'master',
@@ -156,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateProfile,
       deleteAccount,
     }),
-    [user, isLoading, login, register, logout, updateProfile, deleteAccount],
+    [user, token, isLoading, login, register, logout, updateProfile, deleteAccount],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
