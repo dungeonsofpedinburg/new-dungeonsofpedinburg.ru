@@ -42,3 +42,27 @@ npx shadcn@latest add <component-name> -y
 ```ts
 import { Button } from '@/components/ui/button'
 ```
+
+## Авторизация и API
+
+- Клиент API — `src/services/api.ts`, база: `https://functions.yandexcloud.net/d4ejgqppc85no82ns36m`
+  (прямой вызов Yandex Cloud Function).
+- Состояние авторизации — `src/context/AuthContext.tsx` (токен в `localStorage` под ключом `pedinburg_token`,
+  хуки: `user`, `isLoading`, `isAuthenticated`, `isMaster`, `login`, `register`, `logout`, `updateProfile`, `deleteAccount`).
+- UI: `src/components/Header.tsx`, `src/components/auth/AuthModal.tsx`, `src/components/profile/ProfileModal.tsx`.
+
+### Почему маршрут передаётся в query-параметре
+
+Прямой URL функции не поддерживает подпути: `https://functions.yandexcloud.net/<id>/ping` возвращает
+`ProxyIntegrationError`. Поэтому клиент отправляет запрос на корень функции, а маршрут указывает параметром:
+
+```
+GET https://functions.yandexcloud.net/d4ejgqppc85no82ns36m?route=/ping
+POST https://functions.yandexcloud.net/d4ejgqppc85no82ns36m?route=/auth/login
+PUT https://functions.yandexcloud.net/d4ejgqppc85no82ns36m?route=/auth/me
+```
+
+`backend/index.js` разбирает маршрут в `resolvePath()` по приоритету: заголовок `X-Route` →
+query-параметр `route` → обычный путь запроса (вариант за API Gateway). Методы `GET/POST/PUT/DELETE/OPTIONS`
+прямым вызовом поддерживаются, CORS-заголовки отдаёт сам обработчик.
+

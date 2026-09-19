@@ -41,11 +41,15 @@ const BCRYPT_ROUNDS = 10
 const DRIVER_READY_TIMEOUT_MS = 10000
 const AUTO_MIGRATE = process.env.YDB_AUTO_MIGRATE !== 'false'
 const PATH_PREFIX = (process.env.API_PATH_PREFIX || '').replace(/\/+$/, '')
+// Прямой вызов функции (без API Gateway) не пропускает подпути:
+// `/<function_id>/ping` → ProxyIntegrationError. Поэтому маршрут можно передать
+// query-параметром `?route=/ping` или заголовком `X-Route: /ping`.
+const ROUTE_QUERY_PARAM = 'route'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'OPTIONS, GET, POST, PUT, DELETE',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Route',
 }
 
 const ROUTES = {
@@ -567,13 +571,51 @@ function resolveMethod(event) {
   return String(raw || 'GET').toUpperCase()
 }
 
+function getQueryParam(event, name) {
+  const params = event.queryStringParameters
+  if (!params) {
+    return undefined
+  }
+  const key = Object.keys(params).find((param) => param.toLowerCase() === name.toLowerCase())
+  return key ? params[key] : undefined
+}
+
+function safeDecode(value) {
+  if (!value.includes('%')) {
+    return value
+  }
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+/**
+ * Определяет маршрут запроса. Источники (по приоритету):
+ * 1. заголовок `X-Route`;
+ * 2. query-параметр `?route=/ping` — нужен при прямом вызове функции;
+ * 3. обычный путь запроса (работает за API Gateway).
+ */
 function resolvePath(event) {
-  const raw =
-    event.path || event.url || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || '/'
-  let path = String(raw).split('?')[0]
+  const routeFromHeader = asTrimmedString(getHeader(event, 'x-route'))
+  const routeFromQuery = asTrimmedString(getQueryParam(event, ROUTE_QUERY_PARAM))
+  const explicitRoute = safeDecode(routeFromHeader || routeFromQuery)
+
+  let path = explicitRoute
+  if (!path) {
+    const raw =
+      event.path || event.url || (event.requestContext && event.requestContext.http && event.requestContext.http.path) || '/'
+    path = String(raw).split('?')[0]
+  }
+
   if (PATH_PREFIX && path.startsWith(PATH_PREFIX)) {
     path = path.slice(PATH_PREFIX.length)
   }
+  if (!path.startsWith('/')) {
+    path = `/${path}`
+  }
+
   const trimmed = path.replace(/\/+$/, '')
   return trimmed === '' ? '/' : trimmed
 }
