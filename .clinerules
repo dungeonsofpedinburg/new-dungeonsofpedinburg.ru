@@ -1,0 +1,33 @@
+# UI Rules & Design System — Подземелья Пединбурга
+
+1. Стек проекта: React (Vite, TypeScript), Tailwind CSS v4, shadcn/ui, Lucide Icons, React Router.
+2. Стилизация:
+   - В Tailwind CSS v4 НЕТ файла tailwind.config.js. Вся кастомизация и подключение темы происходит в CSS файле через @import "tailwindcss"; и @theme inline.
+   - НИКОГДА не создавай кастомные CSS-правила, классы или файлы стилей. Используй ТОЛЬКО утилитарные классы Tailwind.
+   - Всегда используй семантические дизайн-токены shadcn для цветов (bg-background, text-foreground, bg-card, border-border, text-muted-foreground, bg-accent, text-primary и т.д.).
+   - Тема оформления по умолчанию — Dark (всегда вешай класс 'dark' на html/root).
+3. Мобильная адаптивность (Mobile-First):
+   - Проект ориентирован на использование в барах со смартфонов. Каждый экран, карточка, таблица и модальное окно ОБЯЗАНЫ быть идеально адаптированы под мобильные экраны (375px+).
+4. Компоненты:
+   - Прежде чем писать сложный интерактивный элемент, проверь, есть ли для него готовый компонент в shadcn/ui.
+   - При установке компонентов shadcn ВСЕГДА используй флаг `-y` для неинтерактивной установки:
+     Команда: `npx shadcn@latest add <component-name> -y`
+   - Для всех иконок используй исключительно библиотеку `lucide-react`.
+   - Все пути импорта должны использовать настроенные алиасы: `@/components/...`, `@/lib/...`, `@/types/...`.
+5. Маршрутизация:
+   - Сайт хостится на GitHub Pages. Для предотвращения ошибок 404 при обновлении страниц используй HashRouter или специальную конфигурацию SPA.
+6. Чистота кода:
+   - Строгий TypeScript (никаких `any`, если это явно не требуется сторонней библиотекой).
+   - Все вызовы к бэкенду (Yandex Cloud) должны быть вынесены в отдельные сервисы в папку `@/services/...`.
+
+### Доступный список компонентов shadcn:
+accordion, alert, alert-dialog, aspect-ratio, avatar, badge, breadcrumb, 
+button, calendar, card, carousel, checkbox, collapsible, command, 
+context-menu, dialog, drawer, dropdown-menu, form, hover-card, input, 
+input-otp, label, menubar, navigation-menu, pagination, popover, progress, 
+radio-group, resizable, scroll-area, select, separator, sheet, sidebar, 
+skeleton, slider, sonner, switch, table, tabs, textarea, tooltip.
+
+### Проверка связи:
+В самом начале своего первого ответа в диалоге всегда выводи строку:
+`🎨 [Design System: shadcn/ui + Lucide loaded]`
